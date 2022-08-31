@@ -1,0 +1,288 @@
+#cloud-config
+autoinstall:
+  version: 1
+  # use interactive-sections to avoid an automatic reboot
+  #interactive-sections:
+  #  - locale
+  proxy: http://proxy.local.lan:9999/
+  apt:
+    # even set to no/false, geoip lookup still happens
+    geoip: no
+    preserve_sources_list: false
+    primary:
+    - arches: [amd64, i386]
+      uri: http://fr.archive.ubuntu.com/ubuntu
+    - arches: [default]
+      uri: http://ports.ubuntu.com/ubuntu-ports
+  # XXX ***SEC*** password "test"
+  # $ apt install whois
+  # $ mkpasswd -m sha-512
+  identity:
+     hostname: localhost
+     password: $6$IsUtK.QRMzHR$T0oXmWuNj9tyaIyMnBrdIMJNUTb8F8wBOUsOO0Hi2CP0zpkN7SF7eZmjRgL9/Efrqh4.a17hYrHi2E.F7fJOm/
+     username: ubuntu
+  locale: fr_FR.UTF-8
+  keyboard:
+     layout: fr
+  network:
+    version: 2
+    ethernets:
+        zz-all-en:
+            match:
+                name: "en*"
+            dhcp4: true
+
+  # XXX add .ssh/authorized_keys on client 
+  # $ ssh-keygen
+  # $ cat ~/.ssh/id_rsa.pub
+  # ssh-authorized-keys:
+  #  - ssh-rsa AAAAB3Nza[...]pBdwCk= root@serv1
+
+  ssh:
+    allow-pw: true
+    authorized-keys: []
+    install-server: true
+
+  # this creates an bios_grub partition, root(/) volume and keep a 20% partition for primtux
+  #
+  storage:
+    config:
+    - grub_device: true
+      id: disk-sda
+      path: /dev/sda
+      ptable: gpt
+      type: disk
+      wipe: superblock-recursive
+    - device: disk-sda
+      flag: bios_grub
+      id: partition-0
+      number: 1
+      size: 1048576
+      type: partition
+    - device: disk-sda
+      id: partition-1
+      number: 2
+      size: 80%
+      type: partition
+      wipe: superblock
+    - fstype: ext4
+      id: format-0
+      type: format
+      volume: partition-1
+    - device: format-0
+      id: mount-0
+      path: /
+      type: mount
+    swap:
+      swap: 1G
+      
+  late-commands:
+  - 'echo "ubuntu ALL=(ALL) NOPASSWD:ALL" > /target/etc/sudoers.d/ubuntu-nopw'
+  - chmod 440 /target/etc/sudoers.d/ubuntu-nopw
+  - 'echo "blacklist floppy" > /target/etc/modprobe.d/blacklist-floppy.conf'
+  - chmod 440 /target/etc/modprobe.d/blacklist-floppy.conf
+  - curtin in-target --target=/target -- sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
+  - curtin in-target --target=/target -- sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="modprobe.blacklist=floppy"/' /etc/default/grub
+  - curtin in-target --target=/target -- apt-get install -y nfs-common sssd
+  - curtin in-target --target=/target -- apt-get install -y ubuntu-desktop gnome-software plymouth-theme-ubuntu-logo grub-gfxpayload-lists
+  - curtin in-target --target=/target -- apt-get install -y language-pack-fr firefox-locale-fr gnome-getting-started-docs-fr libreoffice-help-fr mythes-fr language-pack-gnome-fr-base language-pack-gnome-fr wfrench libreoffice-l10n-fr hyphen-fr hunspell-fr gnome-user-docs-fr
+  - curtin in-target --target=/target -- apt-get install -y webext-ublock-origin chromium-browser gimp gimp-data gimp-data-extras
+  - curtin in-target --target=/target -- apt-get install -y libdvd-pkg vlc gstreamer1.0-plugins-bad regionset ubuntu-restricted-extras
+  - curtin in-target --target=/target -- apt-get install -y keepassxc zulucrypt-gui
+  # - curtin in-target --target=/target -- apt-get install -y build-essential linux-headers-$(uname -r) r8168-dkms
+
+  # Set dynamic hostname
+  # (special char "$" in scripts needs to be escaped)
+  - |
+    cat <<EOF | sudo tee /target/etc/dhcp/dhclient-exit-hooks.d/hostname
+    #!/bin/sh
+
+    name=\$(hostname -s)
+    if [ \$name != 'localhost' ]; then
+      return
+    fi
+
+    new_ip_address=\$(hostname -I)
+    echo dhclient-exit-hooks.d/hostname: Dynamic IP address = \$new_ip_address
+    hostname=\$(echo \$new_ip_address | cut -d '.' -f 4 | sed -r 's/((.*)[^\.])\.?/machine-\1/g' )
+    echo \$hostname > /etc/hostname
+    hostname \$hostname
+    echo dhclient-exit-hooks.d/hostname: Dynamic Hostname = \$hostname
+    EOF
+  - chmod 755 /target/etc/dhcp/dhclient-exit-hooks.d/hostname
+
+  # Use proxy for updates
+  - |
+    cat <<EOF | sudo tee /target/etc/apt/detect_proxy.sh
+    #!/bin/bash
+    try_proxies=(
+    proxy.local.lan:9999
+    proxy:9999
+    )
+    for proxy in "\${try_proxies[@]}"; do
+      if nc -z \${proxy/:/ }; then
+        proxy=http://\$proxy/
+        echo "\$proxy"
+        exit
+      fi
+    done
+    echo DIRECT
+    EOF
+  - chmod +x /target/etc/apt/detect_proxy.sh
+  - 'echo "Acquire::http::Proxy-Auto-Detect \"/etc/apt/detect_proxy.sh\";" >> /target/etc/apt/apt.conf.d/01acng'
+
+  # Remote login via SSSD
+  - |
+    cat <<EOF | sudo tee /target/etc/sssd/sssd.conf
+    [sssd]
+    services = nss
+    config_file_version = 2
+    domains = default
+
+    [nss]
+    
+    [domain/default]
+    ldap_id_use_start_tls = True
+    cache_credentials = True
+    ldap_search_base = dc=glauth,dc=com
+    id_provider = ldap
+    auth_provider = ldap
+    sudo_provider = none
+    chpass_provider = none
+    access_provider = ldap
+    ldap_uri = ldaps://ldap:3894
+    ldap_default_bind_dn = uid=serviceuser,dc=glauth,dc=com
+    ldap_default_authtok = ***SEC***serviceuser-pass-in-glauth****
+    ldap_default_authtok_type = password
+    ldap_tls_reqcert = demand
+    ldap_tls_cacert = /etc/ssl/certs/server.local.lan.crt
+    ldap_tls_cacertdir = /etc/ssl/certs
+    ldap_search_timeout = 50
+    ldap_network_timeout = 60
+    ldap_access_order = filter
+    ldap_access_filter = (objectClass=posixAccount)
+    ldap_group_member = member
+    ldap_schema = rfc2307bis
+    enumerate = true
+    EOF
+  - chmod 600 /target/etc/sssd/sssd.conf
+  # Allow local.lan self-signed crt
+  - curtin in-target --target=/target -- sed -i 's/TLS_CACERT/#TLS_CACERT/' /etc/ldap/ldap.conf
+  - 'echo "TLS_CACERT      /etc/ssl/certs/server.local.lan.crt" >> /target/etc/ldap/ldap.conf'
+  # Create homedir
+  # - curtin in-target --target=/target -- sed -i 's/pam_sss.so/pam_sss.so\nsession required        pam_mkhomedir.so skel=\/etc\/skel\/ umask=0022/' /etc/pam.d/common-session
+
+  # NFS share
+  - |
+    cat <<EOF | sudo tee /target/etc/systemd/system/mnt-nfs-remote.mount
+    [Unit]
+    Description = nfs mount for nfsfiles
+
+    [Mount]
+    What=nfs:/home/remote
+    Where=/mnt/nfs/remote
+    Type=nfs
+    Options=defaults
+    TimeoutSec=5
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+  - |
+    cat <<EOF | sudo tee /target/etc/systemd/system/mnt-nfs-remote.automount
+    [Unit]
+    Description=nfs automount for nfsfiles
+
+    [Automount]
+    Where=/mnt/nfs/remote
+    TimeoutIdleSec=0
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+  # Config for Desktop Gnome profile
+  - mkdir -p /target/etc/dconf/profile/
+  - mkdir -p /target/etc/skel/.config/
+  # Disable gnome-initial-setup livepatch
+  - 'echo "yes" >> /target/etc/skel/.config/gnome-initial-setup-done'
+  # allow user self settings
+  - 'echo "user-db:user" >> /target/etc/dconf/profile/user'
+  # user sytems settings
+  - 'echo "system-db:site" >> /target/etc/dconf/profile/user'
+  - mkdir -p /target/etc/dconf/db/site.d/
+  # gdm sytems settings
+  - 'echo "system-db:site" >> /target/etc/dconf/profile/gdm'
+  - mkdir -p /target/etc/dconf/db/gdm.d/
+  # Disable the user list by setting the disable-user-list flag to true
+  - |
+    cat <<EOF | sudo tee /target/etc/dconf/db/gdm.d/00_gdm_defaults
+    [org/gnome/login-screen]
+    disable-user-list = true
+  # Custom Dash To Dock
+  - |
+    cat <<EOF | sudo tee /target/etc/dconf/db/site.d/00_dtd_defaults
+    [org/gnome/shell/extensions/dash-to-dock]
+    extend-height = false
+    dock-position = 2
+    dock-fixed = false
+    autohide = true
+    intellihide = true
+    EOF
+  - curtin in-target --target=/target -- dconf update
+
+  # Embedded user-data
+  user-data: # Commands here run during first boot (cannot be interactive)
+    # XXX set timezone
+    timezone: Europe/Paris
+    locale: fr_FR.UTF-8
+    keyboard:
+       layout: fr
+    runcmd:  # The script below will be dropped in /var/lib/cloud/instance/scripts/runcmd.sh and will be executed at first boot
+    # Set hostname
+      - /etc/dhcp/dhclient-exit-hooks.d/hostname
+    # Remove packages we don't need
+      - apt-get --assume-yes purge thunderbird byobu
+    # locales
+      - apt-get install $(check-language-support)
+      - update-locale LANG=fr_FR.UTF-8 LANGUAGE=fr_FR:fr
+    # Add self-signed local.lan crt
+      - openssl s_client -connect proxy:3894 -showcerts < /dev/null | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > /etc/ssl/certs/server.local.lan.crt
+    # Add homedir for ldap users
+      - [ mkdir, /home/remote ]
+    # Add /mnt/nfs/remote for ldap users
+      - [ mkdir, -p, /mnt/nfs/remote ]
+      - [ systemctl, enable, mnt-nfs-remote.mount ]
+      - [ systemctl, enable, mnt-nfs-remote.automount ]
+      - [ systemctl, start, mnt-nfs-remote.mount ]
+      - [ systemctl, start, mnt-nfs-remote.automount ]
+      - [ chmod, 1777, /mnt/nfs/remote ]
+    # last updates
+      - [ apt-get, update ]
+      - [ apt-get, dist-upgrade, --yes ]
+      - apt autoremove --assume-yes
+      - [ apt-get, upgrade ]
+    # automatic updates
+      - sed -i 's/APT::Periodic::Download-Upgradeable-Packages "0"/APT::Periodic::Download-Upgradeable-Packages "1"/' /etc/apt/apt.conf.d/10periodic 
+    # Create homedir after last upgrades
+      - sed -i 's/pam_sss.so/pam_sss.so\nsession required        pam_mkhomedir.so skel=\/etc\/skel\/ umask=0022/' /etc/pam.d/common-session
+    # dvdcss2
+    #  - [ dpkg-reconfigure, --terse, libdvd-pkg ]
+
+
+
+write_files:
+  # override the kernel package
+ # - path: /run/kernel-meta-package
+ #   content: |
+ #     linux-virtual
+ #   owner: root:root
+ #   permissions: "0644"
+  # attempt to also use an answers file by providing a file at the default path.  It did not seem to have any effect
+  - path: /subiquity_config/answers.yaml
+    content: |
+      InstallProgress:
+        reboot: no
+    owner: root:root
+    permissions: "0644"
+
