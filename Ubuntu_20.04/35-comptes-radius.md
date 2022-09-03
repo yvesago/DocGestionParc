@@ -165,10 +165,10 @@ eap {
     tls-config tls-common {
         #private_key_password = whatever
         #private_key_file = /etc/ssl/private/ssl-cert-snakeoil.key
-        private_key_file = /etc/ssl/private/server.local.lan.key
+        private_key_file = /etc/ssl/private/radius.local.lan.key
     ...
         #certificate_file = /etc/ssl/certs/ssl-cert-snakeoil.pem
-        certificate_file = /etc/ssl/certs/server.local.lan.crt
+        certificate_file = /etc/ssl/certs/radius.local.lan.crt
     ...
         #ca_file = /etc/ssl/certs/ca-certificates.crt
         ca_file = /etc/ssl/certs/localcacert.pem

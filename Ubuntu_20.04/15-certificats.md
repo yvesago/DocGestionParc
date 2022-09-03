@@ -40,6 +40,41 @@ $ chown root:ssl-cert /etc/ssl/private/
 ```
 
 
+## Certificat wifi spécifique pour freeradius
+
+Depuis Android 11, l'accès au réseau wifi a été renforcé. La validation d'un certificat est devenu impérative.
+
+Lors de la configuration de l'accès au réseau avec ``wpa2`` (nous utilisons ici un accès ``TTLS+PAP``), l'option ``Domaine`` doit être équivalente au sujet du certificat. Ici ``radius.local.lan``
+
+Le certificat public ``radius.local.lan.crt`` doit avoir l'extension ``basicConstraints = critical, CA:TRUE``.
+
+Ce certificat doit être enregistré sur chaque appareil Android comme un "Certificat Wi-Fi"
+
+Généralement dans les menus :
+Paramètres > Sécurité > Paramètres avancés > Chiffrement et identifiants > Installer un certificat > Certificat Wi-Fi
+
+Ce certificat doit ensuite être sélectionné dans l'option "Certificat CA"
+
+L'option "État du certificat en ligne" peut conserver la valeur "Ne pas valider"
+
+
+```
+$ openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
+  -keyout radius.local.lan.key -out radius.local.lan.crt -subj "/CN=radius.local.lan" \
+  -addext "basicConstraints = critical, CA:TRUE"
+```
+
+### installation
+
+```
+$ cp radius.local.lan.crt /etc/ssl/certs
+$ cp radius.local.lan.key /etc/ssl/private/
+
+
+$ chmod 640 /etc/ssl/private/radius.local.lan.key
+$ chown :ssl-cert /etc/ssl/private/radius.local.lan.key
+```
+
 ## PKI
 
 Une infrastructure de gestion de clés (PKI) va permettre de définir un certificat public global du domaine.
