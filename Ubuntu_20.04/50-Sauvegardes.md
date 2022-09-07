@@ -162,7 +162,7 @@ repository f356d702 opened successfully, password is correct
 
 # Sauvegarde externe sur disque/clé usb
 
-Copie des sauvegardes chiffrées si une clé usb ou un disque usb avec un dossier racine ``[serv1]-backup/`` (``[serv1]`` est le hostname du serveur) est inséré.
+Copie des sauvegardes chiffrées si une clé usb ou un disque usb avec un dossier racine ``[serv1]-backups/`` (``[serv1]`` est le hostname du serveur) est inséré.
 
 ### config udev
 
@@ -180,9 +180,19 @@ MountFlags=shared
 
 ```
 $ vi /etc/udev/rules.d/90-usb-backup.rules
-ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd[c-z]*", RUN+="/bin/sh -c '/usr/local/bin/usb-backup.sh'"
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd[c-z]*", ENV{SYSTEMD_WANTS}="cpbackup@$env{DEVNAME}.service"
 
 $ systemctl restart udev
+```
+
+``udev`` doit avoir un service ``systemd`` pour faire tourner un process plus long que le timeout par défaut de 2min 59s
+```
+$ vi /etc/systemd/system/cpbackup@.service
+[Service]
+Type=simple
+TimeoutSec=0
+GuessMainPID=false
+ExecStart=/bin/bash -c "/usr/local/bin/usb-backup.sh %I"
 ```
 
 ## Script
@@ -199,6 +209,7 @@ $ vi /usr/local/bin/usb-backup.sh
 
 VERBOSE="y"
 MOUNT_POINT=/media/backup
+DEVNAME=$1
 
 log()
 {
