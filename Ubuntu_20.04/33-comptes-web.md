@@ -11,9 +11,9 @@ La gestion avec interface web est réalisée avec <https://github.com/yvesago/gl
 <https://github.com/yvesago/glauth-ui-light/releases>
 
 ```
-$ wget https://github.com/yvesago/glauth-ui-light/releases/download/v1.4.3/glauth-ui-light_1.4.3-0.static0_amd64.deb
+$ wget https://github.com/yvesago/glauth-ui-light/releases/download/v1.4.4/glauth-ui-light_1.4.4-0.static0_amd64.deb
 
-$ dpkg -i glauth-ui-light_1.4.3-0.static0_amd64.deb
+$ dpkg -i glauth-ui-light_1.4.4-0.static0_amd64.deb
 ```
 
 
@@ -26,7 +26,7 @@ appdesc = "Gestion des utilisateurs et groupes"
 dbfile = "/etc/glauth/sample-simple.cfg"
 port = "0.0.0.0:8080"
 
-# maskotp = true
+maskotp = true
 
 
 # authentification utilisateurs des clients

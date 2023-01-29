@@ -8,7 +8,7 @@ Ubuntu 20.04
 ```
 $ mkdir -p /var/www/images
 $ cd /var/www/images
-$ wget http://releases.ubuntu.com/focal/ubuntu-20.04.4-desktop-amd64.iso
+$ wget http://releases.ubuntu.com/focal/ubuntu-20.04.5-desktop-amd64.iso
 
 $ mkdir -p /var/tftpboot/_iso/ubuntu_20.04/Desktop/
 $ mount /var/www/images/ubuntu-20.04.4-desktop-amd64.iso /mnt/
