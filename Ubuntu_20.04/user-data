@@ -84,11 +84,11 @@ autoinstall:
   - curtin in-target --target=/target -- sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
   - curtin in-target --target=/target -- sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="modprobe.blacklist=floppy"/' /etc/default/grub
   - curtin in-target --target=/target -- apt-get install -y nfs-common sssd
-  - curtin in-target --target=/target -- apt-get install -y ubuntu-desktop gnome-software plymouth-theme-ubuntu-logo grub-gfxpayload-lists
-  - curtin in-target --target=/target -- apt-get install -y language-pack-fr firefox-locale-fr gnome-getting-started-docs-fr libreoffice-help-fr mythes-fr language-pack-gnome-fr-base language-pack-gnome-fr wfrench libreoffice-l10n-fr hyphen-fr hunspell-fr gnome-user-docs-fr
-  - curtin in-target --target=/target -- apt-get install -y webext-ublock-origin chromium-browser gimp gimp-data gimp-data-extras
-  - curtin in-target --target=/target -- apt-get install -y libdvd-pkg vlc gstreamer1.0-plugins-bad regionset ubuntu-restricted-extras
-  - curtin in-target --target=/target -- apt-get install -y keepassxc zulucrypt-gui
+  - curtin in-target --target=/target -- apt-get install -qq -y ubuntu-desktop gnome-software plymouth-theme-ubuntu-logo grub-gfxpayload-lists
+  - curtin in-target --target=/target -- apt-get install -qq -y language-pack-fr firefox-locale-fr gnome-getting-started-docs-fr libreoffice-help-fr mythes-fr language-pack-gnome-fr-base language-pack-gnome-fr wfrench libreoffice-l10n-fr hyphen-fr hunspell-fr gnome-user-docs-fr
+  - curtin in-target --target=/target -- apt-get install -qq -y webext-ublock-origin gimp gimp-data gimp-data-extras
+  - curtin in-target --target=/target -- apt-get install -qq -y vlc gstreamer1.0-plugins-bad regionset ubuntu-restricted-extras
+  - curtin in-target --target=/target -- apt-get install -qq -y keepassxc zulucrypt-gui
   # - curtin in-target --target=/target -- apt-get install -y build-essential linux-headers-$(uname -r) r8168-dkms
 
   # Set dynamic hostname
@@ -219,6 +219,7 @@ autoinstall:
     cat <<EOF | sudo tee /target/etc/dconf/db/gdm.d/00_gdm_defaults
     [org/gnome/login-screen]
     disable-user-list = true
+    EOF
   # Custom Dash To Dock
   - |
     cat <<EOF | sudo tee /target/etc/dconf/db/site.d/00_dtd_defaults
@@ -230,6 +231,32 @@ autoinstall:
     intellihide = true
     EOF
   - curtin in-target --target=/target -- dconf update
+  # Add local CA to firefox
+  - |
+    cat <<EOF | sudo tee /target/usr/lib/firefox/distribution/policies.json
+    {
+    "policies": {
+     "Certificates": {
+       "ImportEnterpriseRoots": true,
+       "Install": ["/etc/ssl/certs/localcacert.pem"]
+        }
+      "Bookmarks": [
+        {
+        "Title": "Comptes",
+        "URL": "https://www.local.lan:8080",
+        "Placement": "toolbar",
+        "Folder": "Ressources"
+       },
+       {
+       "Title": "Locales",
+       "URL": "https://www.local.lan",
+       "Placement": "toolbar",
+       "Folder": "Ressources"
+       }
+      ]
+     }
+    }
+    EOF
 
   # Embedded user-data
   user-data: # Commands here run during first boot (cannot be interactive)
@@ -246,28 +273,34 @@ autoinstall:
     # locales
       - apt-get install $(check-language-support)
       - update-locale LANG=fr_FR.UTF-8 LANGUAGE=fr_FR:fr
+    # snap
+      - snap install chromium
+    # Add local CA
+      - curl http://www.local.lan/localcacert.pem -o /etc/ssl/certs/localcacert.pem
     # Add self-signed local.lan crt
       - openssl s_client -connect proxy:3894 -showcerts < /dev/null | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > /etc/ssl/certs/server.local.lan.crt
     # Add homedir for ldap users
-      - [ mkdir, /home/remote ]
+      - mkdir /home/remote
     # Add /mnt/nfs/remote for ldap users
-      - [ mkdir, -p, /mnt/nfs/remote ]
-      - [ systemctl, enable, mnt-nfs-remote.mount ]
-      - [ systemctl, enable, mnt-nfs-remote.automount ]
-      - [ systemctl, start, mnt-nfs-remote.mount ]
-      - [ systemctl, start, mnt-nfs-remote.automount ]
-      - [ chmod, 1777, /mnt/nfs/remote ]
+      - mkdir -p /mnt/nfs/remote
+      - systemctl enable mnt-nfs-remote.mount
+      - systemctl enable mnt-nfs-remote.automount
+      - systemctl start mnt-nfs-remote.mount
+      - systemctl start mnt-nfs-remote.automount
+      - chmod 1777 /mnt/nfs/remote
+    # DVD
+      - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --assume-yes libdvd-pkg
     # last updates
-      - [ apt-get, update ]
-      - [ apt-get, dist-upgrade, --yes ]
-      - apt autoremove --assume-yes
-      - [ apt-get, upgrade ]
+      - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes
+      - DEBIAN_FRONTEND=noninteractive apt autoremove --assume-yes
+      - DEBIAN_FRONTEND=noninteractive apt-get upgrade
     # automatic updates
       - sed -i 's/APT::Periodic::Download-Upgradeable-Packages "0"/APT::Periodic::Download-Upgradeable-Packages "1"/' /etc/apt/apt.conf.d/10periodic 
     # Create homedir after last upgrades
       - sed -i 's/pam_sss.so/pam_sss.so\nsession required        pam_mkhomedir.so skel=\/etc\/skel\/ umask=0022/' /etc/pam.d/common-session
     # dvdcss2
-    #  - [ dpkg-reconfigure, --terse, libdvd-pkg ]
+      - DEBIAN_FRONTEND=noninteractive dpkg-reconfigure --terse libdvd-pkg
 
 
 
