@@ -1,7 +1,7 @@
 Partage de fichiers HTTP
 ==========
 
-http with caddy
+un serveur http simple avec ``caddy``
 ```
 $ apt install -y debian-keyring debian-archive-keyring apt-transport-https
 $ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
@@ -121,4 +121,42 @@ $ wget https://raw.githubusercontent.com/dbohdan/caddy-markdown-site/main/templa
 code{white-space:nowrap
 #par
 code{white-space:wrap
+```
+
+### Usage de HTTPS
+
+les pages s'affichent sur http et https avec les clés de chiffrement locales
+
+```
+{
+    auto_https disable_redirects
+    # auto_https off
+
+    servers :80 {
+        name http
+    }
+
+    servers :443 {
+        name https
+    }
+
+}
+
+(defaut) {
+    # Set this path to your site's directory.
+    root * /var/www
+
+    ...
+
+}
+
+http:// {
+    import default
+}
+
+https:// {
+    tls /etc/ssl/certs/server.local.lan.crt /etc/ssl/private/server.local.lan.key
+    import default
+}
+
 ```

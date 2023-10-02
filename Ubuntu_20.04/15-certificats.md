@@ -167,7 +167,10 @@ Common Name (e.g. server FQDN or YOUR name) []:master@local.lan
 ```
 $ cp localcakey.pem /etc/ssl/private/
 $ cp localcacert.pem /etc/ssl/certs/
+$ cp localcacert.pem /var/www/
 ```
+
+Le certificat [http://www.local.lan/localcacert.pem](http://www.local.lan/localcacert.pem) peut ensuite être enregistré dans les profils de certificats d'autorité de Firefox
 
 
 ### Création de requête de CSR
