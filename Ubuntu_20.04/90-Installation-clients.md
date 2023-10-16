@@ -1,37 +1,37 @@
-# Installaltion des clients
+# Installation des clients
 
 
 ## Distribution des images
 
-Ubuntu 20.04
+Ubuntu 22.04
 
 ```
 $ mkdir -p /var/www/images
 $ cd /var/www/images
-$ wget http://releases.ubuntu.com/focal/ubuntu-20.04.5-desktop-amd64.iso
+$ wget http://releases.ubuntu.com/jammy/ubuntu-22.04.3-desktop-amd64.iso
 
-$ mkdir -p /var/tftpboot/_iso/ubuntu_20.04/Desktop/
-$ mount /var/www/images/ubuntu-20.04.4-desktop-amd64.iso /mnt/
+$ mkdir -p /var/tftpboot/_iso/ubuntu_22.04/Desktop/
+$ mount /var/www/images/ubuntu-22.04.3-desktop-amd64.iso /mnt/
 
 # copie du noyau vmlinuz et du mini système de démarrage initrd 
-$ cp /mnt/casper/{vmlinuz,initrd} /var/tftpboot/_iso/ubuntu_20.04/
+$ cp /mnt/casper/{vmlinuz,initrd} /var/tftpboot/_iso/ubuntu_22.04/
 
 # copie de la clé sur disque
-$ cp -a /mnt/. /var/tftpboot/_iso/ubuntu_20.04/Desktop/
+$ cp -a /mnt/. /var/tftpboot/_iso/ubuntu_22.04/Desktop/
 
 ```
 
-L'image de Ubuntu Desktop 20.04 a besoin de 8G de mémoire pour être installable depuis la mémoire.
+L'image de Ubuntu Desktop, depuis 20.04, a besoin de 8G de mémoire pour être installable depuis la mémoire.
 
 pour des machines avec moins de RAM, l'astuce est de démarrer avec l'installation serveur
 ```
 $ cd /var/www/images
-$ wget https://releases.ubuntu.com/20.04/ubuntu-20.04.4-live-server-amd64.iso
+$ wget https://releases.ubuntu.com/22.04/ubuntu-23.04.3-live-server-amd64.iso
 $ umount /mnt
-$ mount /var/www/images/ubuntu-20.04.4-live-server-amd64.iso /mnt/
+$ mount /var/www/images/ubuntu-22.04.3-live-server-amd64.iso /mnt/
 
-$ cp /mnt/casper/vmlinuz /var/tftpboot/_iso/ubuntu_20.04/vmlinuz-serv
-$ cp /mnt/casper/initrd /var/tftpboot/_iso/ubuntu_20.04/initrd-serv
+$ cp /mnt/casper/vmlinuz /var/tftpboot/_iso/ubuntu_22.04/vmlinuz-serv
+$ cp /mnt/casper/initrd /var/tftpboot/_iso/ubuntu_22.04/initrd-serv
 
 ```
 
@@ -138,15 +138,15 @@ LABEL reboot
  MENU LABEL Reboot
  COM32 reboot.c32
 LABEL ubuntu_nfs
-  MENU LABEL Ubuntu 20.04 ^Live (NFS)
-  KERNEL _iso/ubuntu_20.04/vmlinuz
-  INITRD _iso/ubuntu_20.04/initrd
-  APPEND modprobe.blacklist=floppy root=/dev/ram0 ramdisk_size=1500000 ip=dhcp locale=fr_FR bootkbd=fr console-setup/layoutcode=fr console-setup/variantcode=nodeadkeys nfsroot=192.168.200.1:/var/tftpboot/_iso/ubuntu_20.04/Desktop netboot=nfs ro boot=casper splash systemd.mask=tmp.mount fsck.mode=skip --
+  MENU LABEL Ubuntu 22.04 ^Live (NFS)
+  KERNEL _iso/ubuntu_22.04/vmlinuz
+  INITRD _iso/ubuntu_22.04/initrd
+  APPEND modprobe.blacklist=floppy root=/dev/ram0 ramdisk_size=1500000 ip=dhcp locale=fr_FR bootkbd=fr console-setup/layoutcode=fr console-setup/variantcode=nodeadkeys nfsroot=192.168.200.1:/var/tftpboot/_iso/ubuntu_22.04/Desktop netboot=nfs ro boot=casper splash systemd.mask=tmp.mount fsck.mode=skip --
 LABEL ubuntu_inst
-  MENU LABEL Ubuntu 20.04 ^Install (HTTP)
-  KERNEL _iso/ubuntu_20.04/vmlinuz-serv
-  INITRD _iso/ubuntu_20.04/initrd-serv
-  APPEND modprobe.blacklist=floppy root=/dev/ram0 ramdisk_size=1500000 ip=dhcp autoinstall url=http://www.local.lan/images/ubuntu-20.04.4-live-server-amd64.iso  ds=nocloud-net;s=http://www.local.lan/images/ubuntu_20.04/ cloud-config-url=/dev/null
+  MENU LABEL Ubuntu 22.04 ^Install (HTTP)
+  KERNEL _iso/ubuntu_22.04/vmlinuz-serv
+  INITRD _iso/ubuntu_22.04/initrd-serv
+  APPEND modprobe.blacklist=floppy root=/dev/ram0 ramdisk_size=1500000 ip=dhcp autoinstall url=http://www.local.lan/images/ubuntu-22.04.3-live-server-amd64.iso  ds=nocloud-net;s=http://www.local.lan/images/ubuntu_22.04/ cloud-config-url=/dev/null
 LABEL primtux_nfs
   MENU LABEL ^PrimTux7 20.04 Live (NFS)
   KERNEL _iso/ubuntu_20.04/vmlinuz
@@ -166,19 +166,19 @@ LABEL primtux_inst
 Ubuntu est installé depuis l'image serveur. La configuration est alors réalisée avec les outils de ``cloud-init`` : un simple fichier texte '``user-data``, distribué par http, permet d'ajouter et configurer les machines clientes 
 
 ```
-$ mkdir /var/www/images/ubuntu_20.04/
+$ mkdir /var/www/images/ubuntu_22.04/
 
-$ touch /var/www/images/ubuntu_20.04/vendor-data
-$ echo "instance-id: focal-autoinstall" > /var/www/images/ubuntu_20.04/meta-data
-$ vi /var/www/images/ubuntu_20.04/user-data
+$ touch /var/www/images/ubuntu_22.04/vendor-data
+$ echo "instance-id: jammy-autoinstall" > /var/www/images/ubuntu_22.04/meta-data
+$ vi /var/www/images/ubuntu_22.04/user-data
 ```
 
 [user-data](user-data) est documenté
 
 Test des erreurs de syntaxe
 ```
-$ cloud-init schema --config-file  /var/www/images/ubuntu_20.04/user-data
-Valid cloud-config: /var/www/images/ubuntu_20.04/user-data
+$ cloud-init schema --config-file  /var/www/images/ubuntu_22.04/user-data
+Valid cloud-config: /var/www/images/ubuntu_22.04/user-data
 ```
 
 ## Primtux

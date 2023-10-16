@@ -25,9 +25,10 @@ Installation d'un serveur Ubuntu 20.04 LTS pour le partage de connexions filaire
    - [control à distance](65-remote-control.md)
 7. [Accès utilisateurs](70-Acces-utilisateurs.md)
 8. [Partage de fichiers (HTTP)](80-Partage-fichiers-HTTP.md)
+   - [Wikipedia local](81-Wikipedia-local.md)
    - [partage de fichiers (NFS)](85-partage-fichiers-NFS.md)
 9. [Installation des machines clientes](90-Installation-clients.md)
-   - **Ubuntu 20.04 Desktop** (PXE et cloud-init) et/ou **PrimTux 7** (PXE)
+   - **Ubuntu 22.04 Desktop** (PXE et cloud-init) et/ou **PrimTux 7** (PXE)
    - [clonage des machines clientes](92-clone-clients.md)
    - gestion du parc avec ``ansible`` **TODO**
 10. [Sécurité](99-Securite.md)

@@ -47,7 +47,17 @@ locations:
     to:
     - hdd
     cron: '0 3 * * *' # Every day at 3:00
-    options: {}
+    options: 
+      backup:
+        exclude:
+        - "*.nope"
+        - "*.swp"
+        - "*.iso"
+        - ".Trash*"
+        - "/home/remote/partimag/*"
+        - "/home/remote/demo/*"
+        - "/home/remote/wikipedia/*"
+    copyoption: {}
   local:
     from:
     - /usr/local
@@ -67,7 +77,13 @@ locations:
       success: []
       failure: []
     cron: 0 3 * * *
-    options: {}
+    options:
+      backup:
+        exclude:
+        - "*.nope"
+        - "*.swp"
+        - "*.iso"
+        - "/var/www/DocGestionParc/.git/*"
     copyoption: {}
 
 $ autorestic check
@@ -128,7 +144,15 @@ $ chmod +x /usr/local/bin/backup.sh
 
 ```
 $ autorestic exec -av -- snapshots
+$ autorestic exec -av -- stats 36e90d04
+  scanning...
+  Stats in restore-size mode:
+     Snapshots processed:  1
+        Total File Count:  73
+              Total Size:  95.664 MiB
+
 $ autorestic exec -av -- diff 36e90d04 1c28bb1d
+$ autorestic exec -av -- ls 36e90d04
 
 # restore file /root/.viminfo in tmp/
 $ autorestic exec -av -- restore 1c28bb1d --target tmp/ --include /root/.viminfo
