@@ -19,10 +19,6 @@ $ openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
 
 
 
-``basicConstraints=CA:true`` serai indispensable pour Android 11 
-mais pas utilisable avec les navigateurs !!!
-
-
 ### installation
 
 ```
@@ -46,8 +42,6 @@ Depuis Android 11, l'accès au réseau wifi a été renforcé. La validation d'u
 
 Lors de la configuration de l'accès au réseau avec ``wpa2`` (nous utilisons ici un accès ``TTLS+PAP``), l'option ``Domaine`` doit être équivalente au sujet du certificat. Ici ``radius.local.lan``
 
-Le certificat public ``radius.local.lan.crt`` doit avoir l'extension ``basicConstraints = critical, CA:TRUE``.
-
 Ce certificat doit être enregistré sur chaque appareil Android comme un "Certificat Wi-Fi"
 
 Généralement dans les menus :
@@ -61,7 +55,6 @@ L'option "État du certificat en ligne" peut conserver la valeur "Ne pas valider
 ```
 $ openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
   -keyout radius.local.lan.key -out radius.local.lan.crt -subj "/CN=radius.local.lan" \
-  -addext "basicConstraints = critical, CA:TRUE"
 ```
 
 ### installation
