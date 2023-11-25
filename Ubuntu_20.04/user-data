@@ -14,6 +14,11 @@ autoinstall:
       uri: http://fr.archive.ubuntu.com/ubuntu
     - arches: [default]
       uri: http://ports.ubuntu.com/ubuntu-ports
+    sources:
+      mozillateam:
+       source: "ppa:mozillateam/ppa"
+      phd:
+       source: "ppa:phd/chromium-browser"
   # XXX ***SEC*** password "test"
   # $ apt install whois
   # $ mkpasswd -m sha-512
@@ -32,11 +37,13 @@ autoinstall:
                 name: "en*"
             dhcp4: true
 
+  ssh_deletekeys: false
+
   # XXX add .ssh/authorized_keys on client 
   # $ ssh-keygen
   # $ cat ~/.ssh/id_rsa.pub
-  # ssh-authorized-keys:
-  #  - ssh-rsa AAAAB3Nza[...]pBdwCk= root@serv1
+  #  authorized-keys:
+  #   - ssh-rsa AAAAB3Nza[...]pBdwCk= root@serv1
 
   ssh:
     allow-pw: true
@@ -85,10 +92,12 @@ autoinstall:
   - curtin in-target --target=/target -- sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="modprobe.blacklist=floppy"/' /etc/default/grub
   - curtin in-target --target=/target -- apt-get install -y nfs-common sssd
   - curtin in-target --target=/target -- apt-get install -qq -y ubuntu-desktop gnome-software plymouth-theme-ubuntu-logo grub-gfxpayload-lists
-  - curtin in-target --target=/target -- apt-get install -qq -y language-pack-fr firefox-locale-fr gnome-getting-started-docs-fr libreoffice-help-fr mythes-fr language-pack-gnome-fr-base language-pack-gnome-fr wfrench libreoffice-l10n-fr hyphen-fr hunspell-fr gnome-user-docs-fr
-  - curtin in-target --target=/target -- apt-get install -qq -y webext-ublock-origin gimp gimp-data gimp-data-extras
+  - curtin in-target --target=/target -- apt-get install -qq -y language-pack-fr firefox-locale-fr libreoffice-help-fr mythes-fr language-pack-gnome-fr-base language-pack-gnome-fr wfrench libreoffice-l10n-fr hyphen-fr hunspell-fr gnome-user-docs-fr
+  - curtin in-target --target=/target -- apt-get install -qq -y gimp gimp-data gimp-data-extras
   - curtin in-target --target=/target -- apt-get install -qq -y vlc gstreamer1.0-plugins-bad regionset ubuntu-restricted-extras
   - curtin in-target --target=/target -- apt-get install -qq -y keepassxc zulucrypt-gui
+  # remove snap firefox
+  - curtin in-target --target=/target -- apt-get remove -qq -y firefox
   # - curtin in-target --target=/target -- apt-get install -y build-essential linux-headers-$(uname -r) r8168-dkms
 
   # Set dynamic hostname
@@ -169,8 +178,6 @@ autoinstall:
   # Allow local.lan self-signed crt
   - curtin in-target --target=/target -- sed -i 's/TLS_CACERT/#TLS_CACERT/' /etc/ldap/ldap.conf
   - 'echo "TLS_CACERT      /etc/ssl/certs/server.local.lan.crt" >> /target/etc/ldap/ldap.conf'
-  # Create homedir
-  # - curtin in-target --target=/target -- sed -i 's/pam_sss.so/pam_sss.so\nsession required        pam_mkhomedir.so skel=\/etc\/skel\/ umask=0022/' /etc/pam.d/common-session
 
   # NFS share
   - |
@@ -216,9 +223,15 @@ autoinstall:
   - mkdir -p /target/etc/dconf/db/gdm.d/
   # Disable the user list by setting the disable-user-list flag to true
   - |
-    cat <<EOF | sudo tee /target/etc/dconf/db/gdm.d/00_gdm_defaults
+    cat <<EOF | sudo tee /target/etc/dconf/db/site.d/00_gdm_defaults
     [org/gnome/login-screen]
     disable-user-list = true
+    EOF
+  # Custom gnome-shell favorites apps
+  - |
+    cat <<EOF | sudo tee /target/etc/dconf/db/site.d/10-favorite-apps
+    [org/gnome/shell]
+    favorite-apps = ['org.gnome.Nautilus.desktop', 'firefox.desktop', 'org.gnome.gedit.desktop', 'libreoffice-writer.desktop', 'org.gnome.Calculator.desktop']
     EOF
   # Custom Dash To Dock
   - |
@@ -231,15 +244,39 @@ autoinstall:
     intellihide = true
     EOF
   - curtin in-target --target=/target -- dconf update
+
+  # Add chromium PPA priority
+  - |
+    cat <<EOF | sudo tee /target/etc/apt/preferences.d/chromium-for-nosnaps
+    Package: *
+    Pin: release o=LP-PPA-phd-chromium-browser
+    Pin-Priority: 1001
+    EOF
+  # Add firefox PPA priority
+  - |
+    cat <<EOF | sudo tee /target/etc/apt/preferences.d/firefox-for-nosnaps
+    Package: firefox*
+    Pin: release o=Ubuntu*
+    Pin-Priority: -1
+    Package: *
+    Pin: release o=LP-PPA-mozillateam
+    Pin-Priority: 599
+    EOF
+  # Add firefox ppa update
+  - |
+    cat <<EOF | sudo tee /target/etc/apt/apt.conf.d/50unattended-upgrades-firefox
+    Unattended-Upgrade::Allowed-Origins:: "LP-PPA-mozillateam:${distro_codename}";
+    EOF
   # Add local CA to firefox
+  - mkdir -p /target/usr/lib/firefox/distribution/
   - |
     cat <<EOF | sudo tee /target/usr/lib/firefox/distribution/policies.json
     {
     "policies": {
-     "Certificates": {
-       "ImportEnterpriseRoots": true,
-       "Install": ["/etc/ssl/certs/localcacert.pem"]
-        }
+      "Certificates": {
+        "ImportEnterpriseRoots": true,
+        "Install": ["/etc/ssl/certs/localcacert.pem"]
+      },
       "Bookmarks": [
         {
         "Title": "Comptes",
@@ -253,7 +290,14 @@ autoinstall:
        "Placement": "toolbar",
        "Folder": "Ressources"
        }
-      ]
+      ],
+      "ExtensionSettings": {
+        "uBlock0@raymondhill.net": {
+          "installation_mode": "force_installed",
+          "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi",
+          "default_area": "navbar"
+         }
+      }
      }
     }
     EOF
@@ -270,11 +314,6 @@ autoinstall:
       - /etc/dhcp/dhclient-exit-hooks.d/hostname
     # Remove packages we don't need
       - apt-get --assume-yes purge thunderbird byobu
-    # locales
-      - apt-get install $(check-language-support)
-      - update-locale LANG=fr_FR.UTF-8 LANGUAGE=fr_FR:fr
-    # snap
-      - snap install chromium
     # Add local CA
       - curl http://www.local.lan/localcacert.pem -o /etc/ssl/certs/localcacert.pem
     # Add self-signed local.lan crt
@@ -290,14 +329,22 @@ autoinstall:
       - chmod 1777 /mnt/nfs/remote
     # DVD
       - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --assume-yes libdvd-pkg
-    # last updates
+    # Trouble in ubuntu-desktop with snap and unbuntu 22.04
+    # - snap install chromium
       - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y firefox firefox-locale-fr
+      - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --assume-yes --allow-downgrades chromium-browser
+    # locales
+      - apt-get install $(check-language-support)
+      - update-locale LANG=fr_FR.UTF-8 LANGUAGE=fr_FR:fr
+    # last updates
+    # - apt-get update
       - DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes
       - DEBIAN_FRONTEND=noninteractive apt autoremove --assume-yes
       - DEBIAN_FRONTEND=noninteractive apt-get upgrade
     # automatic updates
-      - sed -i 's/APT::Periodic::Download-Upgradeable-Packages "0"/APT::Periodic::Download-Upgradeable-Packages "1"/' /etc/apt/apt.conf.d/10periodic 
-    # Create homedir after last upgrades
+      - sed -i 's/APT::Periodic::Download-Upgradeable-Packages "0"/APT::Periodic::Download-Upgradeable-Packages "1"/' /etc/apt/apt.conf.d/10periodic
+    # Create homedir after last upgrade
       - sed -i 's/pam_sss.so/pam_sss.so\nsession required        pam_mkhomedir.so skel=\/etc\/skel\/ umask=0022/' /etc/pam.d/common-session
     # dvdcss2
       - DEBIAN_FRONTEND=noninteractive dpkg-reconfigure --terse libdvd-pkg
