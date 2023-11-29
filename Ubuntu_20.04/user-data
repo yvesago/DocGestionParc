@@ -219,7 +219,7 @@ autoinstall:
   - 'echo "system-db:site" >> /target/etc/dconf/profile/user'
   - mkdir -p /target/etc/dconf/db/site.d/
   # gdm sytems settings
-  - 'echo "system-db:site" >> /target/etc/dconf/profile/gdm'
+  - 'echo "system-db:gdm" >> /target/etc/dconf/profile/gdm'
   - mkdir -p /target/etc/dconf/db/gdm.d/
   # Disable the user list by setting the disable-user-list flag to true
   - |

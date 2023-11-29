@@ -151,12 +151,12 @@ les pages s'affichent sur http et https avec les clés de chiffrement locales
 }
 
 http:// {
-    import default
+    import defaut
 }
 
 https:// {
     tls /etc/ssl/certs/server.local.lan.crt /etc/ssl/private/server.local.lan.key
-    import default
+    import defaut
 }
 
 ```

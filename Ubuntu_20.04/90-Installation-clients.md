@@ -26,7 +26,7 @@ L'image de Ubuntu Desktop, depuis 20.04, a besoin de 8G de mémoire pour être i
 pour des machines avec moins de RAM, l'astuce est de démarrer avec l'installation serveur
 ```
 $ cd /var/www/images
-$ wget https://releases.ubuntu.com/22.04/ubuntu-23.04.3-live-server-amd64.iso
+$ wget https://releases.ubuntu.com/22.04/ubuntu-22.04.3-live-server-amd64.iso
 $ umount /mnt
 $ mount /var/www/images/ubuntu-22.04.3-live-server-amd64.iso /mnt/
 
