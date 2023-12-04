@@ -173,7 +173,11 @@ $ echo "instance-id: jammy-autoinstall" > /var/www/images/ubuntu_22.04/meta-data
 $ vi /var/www/images/ubuntu_22.04/user-data
 ```
 
-[user-data](user-data) est documenté
+[user-data](user-data) est documenté.
+
+
+L'installation démarre avec l'installation d'une version serveur élémentaire, la création de fichier de configuration et la création de 7 scripts d'installation de la version Desktop. Ces scripts sont lancés au cours du premier démarrage. Si le téléchargement de certains paquets échoue sur une liaison réseau à petit débit ou instable, il suffit de relancer les scripts en échec. Sur une petite liaison à 2Mb (3G ou 4G) 1,5Go de données (hors cache) sont téléchargées pendant un peu moins de 3H.
+
 
 Test des erreurs de syntaxe
 ```

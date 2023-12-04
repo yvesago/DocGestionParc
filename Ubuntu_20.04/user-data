@@ -20,7 +20,7 @@ autoinstall:
       phd:
        source: "ppa:phd/chromium-browser"
   # XXX ***SEC*** password "test"
-  # $ apt install whois
+  # $ apt install mkpasswd
   # $ mkpasswd -m sha-512
   identity:
      hostname: localhost
@@ -36,8 +36,6 @@ autoinstall:
             match:
                 name: "en*"
             dhcp4: true
-
-  ssh_deletekeys: false
 
   # XXX add .ssh/authorized_keys on client 
   # $ ssh-keygen
@@ -82,7 +80,7 @@ autoinstall:
       type: mount
     swap:
       swap: 1G
-      
+
   late-commands:
   - 'echo "ubuntu ALL=(ALL) NOPASSWD:ALL" > /target/etc/sudoers.d/ubuntu-nopw'
   - chmod 440 /target/etc/sudoers.d/ubuntu-nopw
@@ -91,14 +89,100 @@ autoinstall:
   - curtin in-target --target=/target -- sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
   - curtin in-target --target=/target -- sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="modprobe.blacklist=floppy"/' /etc/default/grub
   - curtin in-target --target=/target -- apt-get install -y nfs-common sssd
-  - curtin in-target --target=/target -- apt-get install -qq -y ubuntu-desktop gnome-software plymouth-theme-ubuntu-logo grub-gfxpayload-lists
-  - curtin in-target --target=/target -- apt-get install -qq -y language-pack-fr firefox-locale-fr libreoffice-help-fr mythes-fr language-pack-gnome-fr-base language-pack-gnome-fr wfrench libreoffice-l10n-fr hyphen-fr hunspell-fr gnome-user-docs-fr
-  - curtin in-target --target=/target -- apt-get install -qq -y gimp gimp-data gimp-data-extras
-  - curtin in-target --target=/target -- apt-get install -qq -y vlc gstreamer1.0-plugins-bad regionset ubuntu-restricted-extras
-  - curtin in-target --target=/target -- apt-get install -qq -y keepassxc zulucrypt-gui
-  # remove snap firefox
-  - curtin in-target --target=/target -- apt-get remove -qq -y firefox
-  # - curtin in-target --target=/target -- apt-get install -y build-essential linux-headers-$(uname -r) r8168-dkms
+  - |
+    cat <<EOF | sudo tee /target/root/01-desktop.sh
+    #!/bin/sh
+    N=\$0
+    echo "\e[0;32m* Install \$N\e[0m"
+    NEEDRESTART_MODE=a apt install -y --assume-yes ubuntu-desktop gnome-software plymouth-theme-ubuntu-logo grub-gfxpayload-lists plymouth-theme-ubuntu-logo grub-gfxpayload-lists || echo "Installation failed: \$N" >> /root/failed.txt && exit
+    echo "\e[0;32m *OK* \e[0m: \$N"
+    EOF
+  - |
+    cat <<EOF | sudo tee /target/root/02-bureautique.sh
+    #!/bin/sh
+    N=\$0
+    echo "\e[0;32m* Install \$N\e[0m"
+    NEEDRESTART_MODE=a apt-get --assume-yes purge thunderbird byobu
+    NEEDRESTART_MODE=a apt install -y --assume-yes language-pack-fr firefox-locale-fr libreoffice-help-fr mythes-fr language-pack-gnome-fr-base language-pack-gnome-fr wfrench libreoffice-l10n-fr hyphen-fr hunspell-fr gnome-user-docs-fr || echo "Installation failed: \$N" >> /root/failed.txt && exit
+    dconf update
+    echo "\e[0;32m *OK* \e[0m: \$N"
+    EOF
+  - |
+    cat <<EOF | sudo tee /target/root/03-graphisme.sh
+    #!/bin/sh
+    N=\$0
+    echo "\e[0;32m* Install \$N\e[0m"
+    NEEDRESTART_MODE=a apt install -y --assume-yes webext-ublock-origin gimp gimp-data gimp-data-extras || echo "Installation failed: \$N" >> /root/failed.txt && exit
+    echo "\e[0;32m *OK* \e[0m: \$N"
+    EOF
+  - |
+    cat <<EOF | sudo tee /target/root/04-media.sh
+    #!/bin/sh
+    N=\$0
+    echo "\e[0;32m* Install \$N\e[0m"
+    DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt install --assume-yes -y vlc gstreamer1.0-plugins-bad regionset ubuntu-restricted-extras || echo "Installation failed: \$N" >> /root/failed.txt && exit
+    echo "\e[0;32m *OK* \e[0m: \$N"
+    EOF
+  - |
+    cat <<EOF | sudo tee /target/root/05-tools.sh
+    #!/bin/sh
+    N=\$0
+    echo "\e[0;32m* Install media \$N\e[0m"
+    NEEDRESTART_MODE=a apt install -y --assume-yes keepassxc zulucrypt-gui || echo "Installation failed: \$N" >> /root/failed.txt && exit
+    echo "\e[0;32m *OK* \e[0m: \$N"
+    EOF
+  # script for nfs and remote user
+  - |
+    cat <<EOF | sudo tee /target/root/06-nfs.sh
+    #!/bin/sh
+    N=\$0
+    echo "\e[0;32m* Config NFS \$N\e[0m"
+    # Add homedir for ldap users
+    mkdir /home/remote
+    # Make homedir for remote users
+    sed -i 's/pam_sss.so/pam_sss.so\nsession required        pam_mkhomedir.so skel=\/etc\/skel\/ umask=0022/' /etc/pam.d/common-session
+    # Add /mnt/nfs/remote for ldap users
+    mkdir -p /mnt/nfs/remote
+    systemctl enable mnt-nfs-remote.mount
+    systemctl enable mnt-nfs-remote.automount
+    systemctl start mnt-nfs-remote.mount
+    systemctl start mnt-nfs-remote.automount
+    chmod 1777 /mnt/nfs/remote
+    echo "\e[0;32m *OK* \e[0m: \$N"
+    EOF
+  - |
+    cat <<EOF | sudo tee /target/root/07-end.sh
+    #!/bin/sh
+    N=\$0
+    echo "\e[0;32m* FIN \$N\e[0m: last upgrade"
+    NEEDRESTART_MODE=a apt-get install --assume-yes $(check-language-support)
+    update-locale LANG=fr_FR.UTF-8 LANGUAGE=fr_FR:fr
+    # Add local CA
+    curl http://www.local.lan/localcacert.pem -o /etc/ssl/certs/localcacert.pem
+    # Add self-signed local.lan crt
+    openssl s_client -connect proxy:3894 -showcerts < /dev/null | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > /etc/ssl/certs/server.local.lan.crt
+    # DVD
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --assume-yes libdvd-pkg
+    # dvdcss2
+    DEBIAN_FRONTEND=noninteractive dpkg-reconfigure --terse libdvd-pkg
+    # last updates
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes
+    DEBIAN_FRONTEND=noninteractive apt autoremove --assume-yes
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade
+    # automatic updates
+    sed -i 's/APT::Periodic::Download-Upgradeable-Packages "0"/APT::Periodic::Download-Upgradeable-Packages "1"/' /etc/apt/apt.conf.d/10periodic
+    if [ -f "/root/failed.txt" ]; then
+        echo "Installation failed: \$N" >> /root/failed.txt
+        echo "\e[0;31m* Des installations ont échoué\e[0m"
+        echo "  les scripts suivants doivent être relancés:"
+        cat /root/failed.txt
+    else
+      echo "\e[0;32m *OK* \e[0m: FIN ... wait for reboot ..."
+      sleep 10 && reboot
+    fi
+    EOF
+  - chmod +x /target/root/*.sh
 
   # Set dynamic hostname
   # (special char "$" in scripts needs to be escaped)
@@ -149,7 +233,7 @@ autoinstall:
     domains = default
 
     [nss]
-    
+
     [domain/default]
     ldap_id_use_start_tls = True
     cache_credentials = True
@@ -223,7 +307,7 @@ autoinstall:
   - mkdir -p /target/etc/dconf/db/gdm.d/
   # Disable the user list by setting the disable-user-list flag to true
   - |
-    cat <<EOF | sudo tee /target/etc/dconf/db/site.d/00_gdm_defaults
+    cat <<EOF | sudo tee /target/etc/dconf/db/gdm.d/00_gdm_defaults
     [org/gnome/login-screen]
     disable-user-list = true
     EOF
@@ -233,7 +317,7 @@ autoinstall:
     [org/gnome/shell]
     favorite-apps = ['org.gnome.Nautilus.desktop', 'firefox.desktop', 'org.gnome.gedit.desktop', 'libreoffice-writer.desktop', 'org.gnome.Calculator.desktop']
     EOF
-  # Custom Dash To Dock
+ # Custom Dash To Dock
   - |
     cat <<EOF | sudo tee /target/etc/dconf/db/site.d/00_dtd_defaults
     [org/gnome/shell/extensions/dash-to-dock]
@@ -242,15 +326,6 @@ autoinstall:
     dock-fixed = false
     autohide = true
     intellihide = true
-    EOF
-  - curtin in-target --target=/target -- dconf update
-
-  # Add chromium PPA priority
-  - |
-    cat <<EOF | sudo tee /target/etc/apt/preferences.d/chromium-for-nosnaps
-    Package: *
-    Pin: release o=LP-PPA-phd-chromium-browser
-    Pin-Priority: 1001
     EOF
   # Add firefox PPA priority
   - |
@@ -273,23 +348,34 @@ autoinstall:
     cat <<EOF | sudo tee /target/usr/lib/firefox/distribution/policies.json
     {
     "policies": {
-      "Certificates": {
-        "ImportEnterpriseRoots": true,
-        "Install": ["/etc/ssl/certs/localcacert.pem"]
-      },
-      "Bookmarks": [
+     "OverrideFirstRunPage": "",
+     "OverridePostUpdatePage": "",
+     "NoDefaultBookmarks": true,
+     "FirefoxHome": {
+       "Search": true,
+       "TopSites": true,
+       "SponsoredTopSites": false,
+       "Highlights": false,
+       "Pocket": true,
+       "SponsoredPocket": false
+     },
+     "Certificates": {
+       "ImportEnterpriseRoots": true,
+       "Install": ["/etc/ssl/certs/localcacert.pem"]
+        },
+      "DisplayBookmarksToolbar": true,
+      "ManagedBookmarks": [
         {
-        "Title": "Comptes",
-        "URL": "https://www.local.lan:8080",
-        "Placement": "toolbar",
-        "Folder": "Ressources"
-       },
-       {
-       "Title": "Locales",
-       "URL": "https://www.local.lan",
-       "Placement": "toolbar",
-       "Folder": "Ressources"
-       }
+        "toplevel_name": "Ressources"
+        },
+        {
+        "name": "Comptes",
+        "url": "https://www.local.lan:8080"
+        },
+        {
+        "name": "Locales",
+        "url": "https://www.local.lan/"
+        }
       ],
       "ExtensionSettings": {
         "uBlock0@raymondhill.net": {
@@ -312,43 +398,14 @@ autoinstall:
     runcmd:  # The script below will be dropped in /var/lib/cloud/instance/scripts/runcmd.sh and will be executed at first boot
     # Set hostname
       - /etc/dhcp/dhclient-exit-hooks.d/hostname
-    # Remove packages we don't need
-      - apt-get --assume-yes purge thunderbird byobu
-    # Add local CA
-      - curl http://www.local.lan/localcacert.pem -o /etc/ssl/certs/localcacert.pem
-    # Add self-signed local.lan crt
-      - openssl s_client -connect proxy:3894 -showcerts < /dev/null | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > /etc/ssl/certs/server.local.lan.crt
-    # Add homedir for ldap users
-      - mkdir /home/remote
-    # Add /mnt/nfs/remote for ldap users
-      - mkdir -p /mnt/nfs/remote
-      - systemctl enable mnt-nfs-remote.mount
-      - systemctl enable mnt-nfs-remote.automount
-      - systemctl start mnt-nfs-remote.mount
-      - systemctl start mnt-nfs-remote.automount
-      - chmod 1777 /mnt/nfs/remote
-    # DVD
-      - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --assume-yes libdvd-pkg
-    # Trouble in ubuntu-desktop with snap and unbuntu 22.04
-    # - snap install chromium
-      - apt-get update
-      - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y firefox firefox-locale-fr
-      - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --assume-yes --allow-downgrades chromium-browser
-    # locales
-      - apt-get install $(check-language-support)
-      - update-locale LANG=fr_FR.UTF-8 LANGUAGE=fr_FR:fr
-    # last updates
-    # - apt-get update
-      - DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes
-      - DEBIAN_FRONTEND=noninteractive apt autoremove --assume-yes
-      - DEBIAN_FRONTEND=noninteractive apt-get upgrade
-    # automatic updates
-      - sed -i 's/APT::Periodic::Download-Upgradeable-Packages "0"/APT::Periodic::Download-Upgradeable-Packages "1"/' /etc/apt/apt.conf.d/10periodic
-    # Create homedir after last upgrade
-      - sed -i 's/pam_sss.so/pam_sss.so\nsession required        pam_mkhomedir.so skel=\/etc\/skel\/ umask=0022/' /etc/pam.d/common-session
-    # dvdcss2
-      - DEBIAN_FRONTEND=noninteractive dpkg-reconfigure --terse libdvd-pkg
-
+    # Start scripts
+      - /root/01-desktop.sh
+      - /root/02-bureautique.sh
+      - /root/03-graphisme.sh
+      - /root/04-media.sh
+      - /root/05-tools.sh
+      - /root/06-nfs.sh
+      - /root/07-end.sh
 
 
 write_files:
