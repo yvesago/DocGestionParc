@@ -37,7 +37,7 @@ become = True
 
 ### En-tête du fichier ``host``
 ```
-$ vi ~/ansible/inventaires/host
+$ vi ~/ansible/inventaires/hosts
 
 [machines:vars]
 ansible_ssh_user = ubuntu
@@ -161,4 +161,51 @@ $ cat ../ansible/playbook/add-fstab.yml
            path: "/etc/fstab"
            line: "192.168.200.1:/home/remote /mnt/nfs/remote/  nfs      defaults    0       0"
            insertbefore: EOF
+```
+
+exemple: corrections de fichiers avec attente du démarrage des machines
+
+```
+$ cat ~/ansible/playbooks/onboot.yml
+---
+- hosts: all
+  gather_facts: false
+  tasks:
+  - name: Wait for ssh
+    wait_for_connection:
+      delay: 60
+      timeout: 3600
+
+- name: Deploy new Firefox policies
+  hosts: machines
+  gather_facts: false
+  tasks:
+    - name: Check that line exists in policies.json
+      lineinfile:
+        name: /usr/lib/firefox/distribution/policies.json
+        line: "ManagedBookmarks"
+        state: absent
+      check_mode: yes
+      register: result
+    - name: Copy the file, if it doesnt exist already
+      copy:
+        src: /mnt/nfs/remote/policies.json
+        dest: /usr/lib/firefox/distribution/policies.json
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0644'
+      when: result is not changed
+
+- name: Fix detect_proxy.sh
+  hosts: machines
+  tasks:
+    - name: Check that line exists in detect_proxy.sh
+      lineinfile:
+        path: /etc/apt/detect_proxy.sh
+        regexp: "proxy=http://proxy/"
+        line: "    proxy=http://$proxy/"
+        backup: yes
+        state: present
+      register: proxy_result
 ```
